@@ -10,7 +10,6 @@ import mlflow
 import mlflow.sklearn
 
 # === FIX PENTING ===
-mlflow.set_tracking_uri("file:///E:/Dicoding/Machine Learning/Membangun Sistem Machine Learning/Lat/MSML/Kriteria 2/mlruns")
 mlflow.set_experiment("clustering-experiment")
 
 with mlflow.start_run():

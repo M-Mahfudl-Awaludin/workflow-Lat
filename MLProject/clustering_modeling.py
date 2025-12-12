@@ -13,8 +13,7 @@ import mlflow.sklearn
 # Jangan membuat experiment baru saat MLflow Projects sudah mengatur environment
 mlflow.set_experiment("clustering-experiment")
 
-# FIX INTI ERROR: izinkan nested run jika sudah ada run ID dari MLflow Projects
-with mlflow.start_run(nested=True):
+with mlflow.start_run():
 
     # 1. Load Data
     df = pd.read_csv("preprocessed_data.csv")

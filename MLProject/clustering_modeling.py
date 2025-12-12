@@ -10,54 +10,58 @@ import mlflow
 import mlflow.sklearn
 
 # === FIX PENTING ===
-# Jangan membuat experiment baru saat MLflow Projects sudah mengatur environment
-mlflow.set_experiment("clustering-experiment")
+# Hapus set_experiment(). MLflow Project akan otomatis menetapkan experiment.
+# Hapus nested run. Gunakan run yang dibuat MLflow Project.
 
-with mlflow.start_run():
+if __name__ == "__main__":
 
-    # 1. Load Data
-    df = pd.read_csv("preprocessed_data.csv")
+    # MLflow Project sudah membuat run, jadi gunakan start_run() tanpa argumen.
+    with mlflow.start_run():
 
-    print("\n=== HEAD ===")
-    print(df.head())
+        # 1. Load Data
+        df = pd.read_csv("preprocessed_data.csv")
 
-    print("\n=== INFO ===")
-    print(df.info())
+        print("\n=== HEAD ===")
+        print(df.head())
 
-    print("\n=== DESCRIBE ===")
-    print(df.describe())
+        print("\n=== INFO ===")
+        print(df.info())
 
-    # 2. Elbow Method
-    model = KMeans(random_state=42)
-    visualizer = KElbowVisualizer(
-        model,
-        k=(2, 10),
-        metric='silhouette',
-        timings=False
-    )
-    visualizer.fit(df)
+        print("\n=== DESCRIBE ===")
+        print(df.describe())
 
-    best_k = visualizer.elbow_value_
-    print("\nBest k from Elbow:", best_k)
-    mlflow.log_param("elbow_best_k", best_k)
+        # 2. Elbow Method
+        model = KMeans(random_state=42)
+        visualizer = KElbowVisualizer(
+            model,
+            k=(2, 10),
+            metric='silhouette',
+            timings=False
+        )
+        visualizer.fit(df)
 
-    # 3. Train Model
-    kmeans = KMeans(n_clusters=3, random_state=42)
-    kmeans.fit(df)
+        best_k = visualizer.elbow_value_
+        print("\nBest k from Elbow:", best_k)
+        mlflow.log_param("elbow_best_k", best_k)
 
-    mlflow.log_param("final_n_clusters", 3)
+        # 3. Train Final Model
+        FINAL_K = 3
+        kmeans = KMeans(n_clusters=FINAL_K, random_state=42)
+        kmeans.fit(df)
 
-    score = silhouette_score(df, kmeans.labels_)
-    print("Silhouette Score:", score)
-    mlflow.log_metric("silhouette_score", score)
+        mlflow.log_param("final_n_clusters", FINAL_K)
 
-    # 4. Save model locally
-    os.makedirs("artifacts", exist_ok=True)
-    model_path = os.path.join("artifacts", "model_clustering.h5")
-    joblib.dump(kmeans, model_path)
-    print("\nModel saved to:", model_path)
+        score = silhouette_score(df, kmeans.labels_)
+        print("Silhouette Score:", score)
+        mlflow.log_metric("silhouette_score", score)
 
-    # 5. Log ke MLflow
-    mlflow.log_artifacts("artifacts", artifact_path="model")
+        # 4. Save model locally
+        os.makedirs("artifacts", exist_ok=True)
+        model_path = os.path.join("artifacts", "model_clustering.h5")
+        joblib.dump(kmeans, model_path)
+        print("\nModel saved to:", model_path)
 
-print("\n=== MLflow logging completed ===")
+        # 5. Log ke MLflow
+        mlflow.log_artifacts("artifacts", artifact_path="model")
+
+    print("\n=== MLflow logging completed ===")

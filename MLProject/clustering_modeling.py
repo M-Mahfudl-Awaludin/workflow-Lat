@@ -10,9 +10,11 @@ import mlflow
 import mlflow.sklearn
 
 # === FIX PENTING ===
+# Jangan membuat experiment baru saat MLflow Projects sudah mengatur environment
 mlflow.set_experiment("clustering-experiment")
 
-with mlflow.start_run():
+# FIX INTI ERROR: izinkan nested run jika sudah ada run ID dari MLflow Projects
+with mlflow.start_run(nested=True):
 
     # 1. Load Data
     df = pd.read_csv("preprocessed_data.csv")
@@ -56,9 +58,7 @@ with mlflow.start_run():
     joblib.dump(kmeans, model_path)
     print("\nModel saved to:", model_path)
 
-    # 5. Log ke MLflow (INI SEKARANG BEKERJA)
+    # 5. Log ke MLflow
     mlflow.log_artifacts("artifacts", artifact_path="model")
-    # atau:
-    # mlflow.sklearn.log_model(kmeans, artifact_path="model")
 
 print("\n=== MLflow logging completed ===")

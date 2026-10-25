@@ -1,0 +1,29 @@
+
+name: Workflow CI
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  train-model:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install MLflow
+        run: pip install mlflow==2.22.0
+
+      - name: Run MLflow Project
+        run: |
+          cd MLProject
+          mlflow run . --env-manager=local

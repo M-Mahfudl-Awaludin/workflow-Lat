@@ -29,9 +29,9 @@ jobs:
 
       - name: Validate project files
         run: |
-          test -f MLProject/MLproject
+          test -f MLProject/MLProject
+          test -f MLProject/conda.yml
           test -f MLProject/modelling.py
-          test -f MLProject/conda.yaml
           test -f MLProject/titanic_preprocessing_train.csv
           test -f MLProject/titanic_preprocessing_test.csv
           echo "Semua file MLProject tersedia."

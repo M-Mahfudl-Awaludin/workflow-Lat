@@ -1,5 +1,5 @@
 
-name: clustering-env
+name: titanic-classification-env
 
 channels:
   - conda-forge

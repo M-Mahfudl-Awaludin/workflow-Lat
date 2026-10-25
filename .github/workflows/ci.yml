@@ -5,10 +5,13 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
-  train-model:
+  train-and-validate:
     runs-on: ubuntu-latest
 
     steps:
@@ -19,16 +22,43 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install mlflow==2.22.0
-          pip install scikit-learn==1.6.1
-          pip install pandas==2.2.3
-          pip install numpy==2.2.4
+          pip install -r requirements.txt
+          pip install pyyaml
+
+      - name: Validate Python syntax
+        run: |
+          python -m py_compile MLProject/modelling.py
+          python -m py_compile "Monitoring dan Logging/prometheus_exporter.py"
+          python -m py_compile "Monitoring dan Logging/inference.py"
+
+      - name: Validate Prometheus configuration
+        run: |
+          python -c "import yaml; yaml.safe_load(open('Monitoring dan Logging/prometheus.yml', encoding='utf-8')); print('prometheus.yml valid')"
+
+      - name: Check preprocessing datasets
+        run: |
+          test -f MLProject/titanic_preprocessing_train.csv
+          test -f MLProject/titanic_preprocessing_test.csv
+          echo "Dataset preprocessing tersedia."
 
       - name: Run MLflow Project
+        working-directory: MLProject
         run: |
-          cd MLProject
           mlflow run . --env-manager=local
+
+      - name: Upload training results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: titanic-training-results
+          path: |
+            MLProject/hasil_prediksi_titanic.csv
+            MLProject/classification_report.txt
+            MLProject/confusion_matrix.csv
+          if-no-files-found: ignore

@@ -1,5 +1,5 @@
 
-name: mall-customers-clustering
+name: titanic-classification
 
 entry_points:
   main:

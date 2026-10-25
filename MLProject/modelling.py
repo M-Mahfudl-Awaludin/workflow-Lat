@@ -30,59 +30,51 @@ if X.isnull().any().any():
 
 if len(X) < 6:
     raise ValueError(
-        "Dataset harus memiliki minimal 6 baris untuk evaluasi silhouette."
+        "Dataset minimal harus memiliki 6 baris."
     )
 
-# Set MLflow Tracking URI lokal
-mlflow.set_tracking_uri("file:./mlruns")
-mlflow.set_experiment("Latihan Model Statis")
+# Jangan memanggil set_tracking_uri(), set_experiment(),
+# atau start_run() di sini.
+# MLflow Project mengelola run yang sedang aktif.
 
 # Enable MLflow Autolog
 mlflow.sklearn.autolog(log_models=False)
 
-with mlflow.start_run() as run:
+# Define model
+model = KMeans(
+    n_clusters=5,
+    random_state=42,
+    n_init=10
+)
 
-    # Define model without hyperparameter tuning
-    model = KMeans(
-        n_clusters=5,
-        random_state=42,
-        n_init=10
-    )
+# Train model
+model.fit(X)
 
-    # Train model
-    model.fit(X)
+# Predict cluster
+y_pred = model.predict(X)
 
-    # Predict cluster
-    y_pred = model.predict(X)
+# Evaluate clustering
+inertia = float(model.inertia_)
+silhouette = float(silhouette_score(X, y_pred))
 
-    # Evaluate clustering
-    inertia = float(model.inertia_)
-    silhouette = float(silhouette_score(X, y_pred))
+# Log metrics to the active MLflow Project run
+mlflow.log_metric("inertia", inertia)
+mlflow.log_metric("silhouette_score", silhouette)
 
-    # Log additional metrics
-    mlflow.log_metric("inertia", inertia)
-    mlflow.log_metric("silhouette_score", silhouette)
+# Log model
+mlflow.sklearn.log_model(
+    sk_model=model,
+    artifact_path="model",
+    input_example=X.head(5)
+)
 
-    # Log model
-    input_example = X.iloc[:5]
+# Save clustering results
+df["Cluster"] = y_pred
+df.to_csv("hasil_clustering.csv", index=False)
 
-    mlflow.sklearn.log_model(
-        sk_model=model,
-        artifact_path="model",
-        input_example=input_example
-    )
-
-    # Save clustering results
-    df["Cluster"] = y_pred
-
-    df.to_csv(
-        "hasil_clustering.csv",
-        index=False
-    )
-
-    print("Model training completed successfully.")
-    print(f"Inertia: {inertia:.4f}")
-    print(f"Silhouette Score: {silhouette:.4f}")
-    print(f"MLflow Run ID: {run.info.run_id}")
+print("Model training completed successfully.")
+print(f"Inertia: {inertia:.4f}")
+print(f"Silhouette Score: {silhouette:.4f}")
+print(f"MLflow Run ID: {os.environ.get('MLFLOW_RUN_ID', 'managed by MLflow')}")
 
 print("Experiment completed.")

@@ -43,63 +43,57 @@ if len(X) <= 5:
 # Set MLflow Tracking URI
 tracking_uri = os.getenv(
     "MLFLOW_TRACKING_URI",
-    "http://127.0.0.1:5000/"
+    "file:./mlruns"
 )
 
 mlflow.set_tracking_uri(tracking_uri)
 mlflow.set_experiment("Global Superyachts Clustering")
 
-# Autolog
+# Enable autologging
 mlflow.sklearn.autolog()
 
-with mlflow.start_run():
+# Define model without hyperparameter tuning
+model = KMeans(
+    n_clusters=5,
+    random_state=42,
+    n_init=10
+)
 
-    # Define model without hyperparameter tuning
-    model = KMeans(
-        n_clusters=5,
-        random_state=42,
-        n_init=10
-    )
+# Train model
+model.fit(X)
 
-    # Train model
-    model.fit(X)
+# Predict cluster
+y_pred = model.predict(X)
 
-    # Predict cluster
-    y_pred = model.predict(X)
+# Evaluate clustering
+inertia = model.inertia_
+silhouette = silhouette_score(X, y_pred)
 
-    # Evaluate clustering
-    inertia = model.inertia_
-    silhouette = silhouette_score(X, y_pred)
+# Log additional metrics to the active MLflow Project run
+mlflow.log_metric("inertia", float(inertia))
+mlflow.log_metric("silhouette_score", float(silhouette))
 
-    # Log additional metrics
-    mlflow.log_metric("inertia", float(inertia))
-    mlflow.log_metric("silhouette_score", float(silhouette))
+# Save clustering results
+df["Cluster"] = y_pred
 
-    # Log model
-    input_example = X.iloc[:5]
+df.to_csv(
+    BASE_DIR / "hasil_clustering.csv",
+    index=False
+)
 
-    mlflow.sklearn.log_model(
-        model,
-        "model",
-        input_example=input_example
-    )
+# Save cluster summary
+df.groupby("Cluster")[features].mean().to_csv(
+    BASE_DIR / "ringkasan_cluster.csv"
+)
 
-    # Save clustering results
-    df["Cluster"] = y_pred
+# Display results
+active_run = mlflow.active_run()
 
-    df.to_csv(
-        BASE_DIR / "hasil_clustering.csv",
-        index=False
-    )
+print("Model training completed successfully.")
+print(f"Inertia: {inertia:.4f}")
+print(f"Silhouette Score: {silhouette:.4f}")
 
-    # Save cluster summary
-    df.groupby("Cluster")[features].mean().to_csv(
-        BASE_DIR / "ringkasan_cluster.csv"
-    )
-
-    print("Model training completed successfully.")
-    print(f"Inertia: {inertia:.4f}")
-    print(f"Silhouette Score: {silhouette:.4f}")
-    print(f"MLflow Run ID: {mlflow.active_run().info.run_id}")
+if active_run:
+    print(f"MLflow Run ID: {active_run.info.run_id}")
 
 print("Experiment completed.")

@@ -29,9 +29,20 @@ jobs:
           pip install pandas==2.2.3
           pip install numpy==2.2.4
 
-      - name: Run MLflow Project
-        env:
-          MLFLOW_TRACKING_URI: file:./mlruns
+      - name: Validate project files
         run: |
-          cd MLProject
+          test -f MLProject/MLproject
+          test -f MLProject/modelling.py
+          test -f MLProject/titanic_preprocessing_train.csv
+          test -f MLProject/titanic_preprocessing_test.csv
+          echo "Semua file tersedia."
+
+      - name: Validate Python syntax
+        run: |
+          python -m py_compile MLProject/modelling.py
+          echo "Sintaks Python valid."
+
+      - name: Run MLflow Project
+        working-directory: MLProject
+        run: |
           mlflow run . --env-manager=local

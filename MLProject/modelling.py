@@ -1,99 +1,71 @@
 
-import os
 from pathlib import Path
 
 import mlflow
 import mlflow.sklearn
 import pandas as pd
 
-from sklearn.cluster import KMeans
-from sklearn.metrics import silhouette_score
+from sklearn.ensemble import RandomForestClassifier
 
-# Set project directory
+# Konfigurasi direktori
 BASE_DIR = Path(__file__).resolve().parent
 
-# Load preprocessed data
-df = pd.read_csv(BASE_DIR / "preprocessed_data.csv")
+TRAIN_PATH = BASE_DIR / "titanic_preprocessing_train.csv"
+TEST_PATH = BASE_DIR / "titanic_preprocessing_test.csv"
 
-# Select features for clustering
-features = [
-    "Year_Built",
-    "Length_meters",
-    "Gross_Tonnage",
-    "Top_Speed_knots",
-    "Guests_Capacity"
-]
+# Memuat dataset
+train_df = pd.read_csv(TRAIN_PATH)
+test_df = pd.read_csv(TEST_PATH)
 
-X = df[features].copy()
+target = "Survived"
 
-# Convert features to numeric
-X = X.apply(pd.to_numeric, errors="coerce")
+if target not in train_df.columns or target not in test_df.columns:
+    raise ValueError("Kolom Survived tidak ditemukan.")
 
-# Handle missing values
-X = X.fillna(X.median())
+X_train = train_df.drop(columns=[target])
+y_train = train_df[target].astype(int)
 
-# Remove rows with remaining missing values
-valid_rows = X.notna().all(axis=1)
-X = X.loc[valid_rows]
-df = df.loc[valid_rows].copy()
+X_test = test_df.drop(columns=[target])
+y_test = test_df[target].astype(int)
 
-if len(X) <= 5:
-    raise ValueError("Jumlah data harus lebih dari 5.")
+if list(X_train.columns) != list(X_test.columns):
+    raise ValueError("Kolom fitur training dan testing tidak konsisten.")
 
-# Set MLflow Tracking URI
-tracking_uri = os.getenv(
-    "MLFLOW_TRACKING_URI",
-    "file:./mlruns"
-)
+if X_train.isnull().any().any() or X_test.isnull().any().any():
+    raise ValueError("Dataset masih mengandung missing values.")
 
-mlflow.set_tracking_uri(tracking_uri)
-mlflow.set_experiment("Global Superyachts Clustering")
+if len(X_train) == 0 or len(X_test) == 0:
+    raise ValueError("Dataset training atau testing kosong.")
 
-# Enable autologging
+# Konfigurasi MLflow
+mlflow.set_experiment("Titanic Classification")
+
+# Autolog parameter, metrik, dan model
 mlflow.sklearn.autolog()
 
-# Define model without hyperparameter tuning
-model = KMeans(
-    n_clusters=5,
+# Membuat dan melatih model
+model = RandomForestClassifier(
+    n_estimators=200,
+    max_depth=None,
+    min_samples_split=2,
+    min_samples_leaf=1,
     random_state=42,
-    n_init=10
+    n_jobs=-1,
 )
 
-# Train model
-model.fit(X)
+model.fit(X_train, y_train)
 
-# Predict cluster
-y_pred = model.predict(X)
+# Prediksi
+y_pred = model.predict(X_test)
 
-# Evaluate clustering
-inertia = model.inertia_
-silhouette = silhouette_score(X, y_pred)
-
-# Log additional metrics to the active MLflow Project run
-mlflow.log_metric("inertia", float(inertia))
-mlflow.log_metric("silhouette_score", float(silhouette))
-
-# Save clustering results
-df["Cluster"] = y_pred
-
-df.to_csv(
-    BASE_DIR / "hasil_clustering.csv",
-    index=False
+# Simpan hasil prediksi
+pd.DataFrame({
+    "actual_Survived": y_test.to_numpy(),
+    "predicted_Survived": y_pred,
+}).to_csv(
+    BASE_DIR / "hasil_prediksi_titanic.csv",
+    index=False,
 )
 
-# Save cluster summary
-df.groupby("Cluster")[features].mean().to_csv(
-    BASE_DIR / "ringkasan_cluster.csv"
-)
-
-# Display results
-active_run = mlflow.active_run()
-
-print("Model training completed successfully.")
-print(f"Inertia: {inertia:.4f}")
-print(f"Silhouette Score: {silhouette:.4f}")
-
-if active_run:
-    print(f"MLflow Run ID: {active_run.info.run_id}")
-
-print("Experiment completed.")
+print("Training model selesai.")
+print("Hasil prediksi berhasil disimpan.")

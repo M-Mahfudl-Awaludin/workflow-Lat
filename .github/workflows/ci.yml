@@ -23,16 +23,16 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r MLProject/requirements.txt
+          pip install -r MLproject/requirements.txt
 
       - name: Validate preprocessing dataset
         run: |
-          test -f MLProject/preprocessed_data.csv
-          python -c "import pandas as pd; df = pd.read_csv('MLProject/preprocessed_data.csv'); assert not df.empty, 'Dataset kosong'; print('Dataset shape:', df.shape)"
+          test -f MLproject/preprocessed_data.csv
+          python -c "import pandas as pd; df = pd.read_csv('MLproject/preprocessed_data.csv'); assert not df.empty, 'Dataset kosong'; print('Dataset shape:', df.shape)"
 
       - name: Start MLflow Tracking Server
         run: |
-          cd MLProject
+          cd MLproject
           mkdir -p mlartifacts
           nohup mlflow server \
             --host 127.0.0.1 \
@@ -51,14 +51,14 @@ jobs:
             sleep 2
           done
           echo "MLflow server failed to start"
-          cat MLProject/mlflow_server.log
+          cat MLproject/mlflow_server.log
           exit 1
 
       - name: Run MLflow Project
         env:
           MLFLOW_TRACKING_URI: http://127.0.0.1:5000
         run: |
-          cd MLProject
+          cd MLproject
           mlflow run . --env-manager=local
 
       - name: Upload clustering results
@@ -67,8 +67,8 @@ jobs:
         with:
           name: global-superyachts-clustering-results
           path: |
-            MLProject/hasil_clustering.csv
-            MLProject/ringkasan_cluster.csv
-            MLProject/mlflow.db
-            MLProject/mlflow_server.log
+            MLproject/hasil_clustering.csv
+            MLproject/ringkasan_cluster.csv
+            MLproject/mlflow.db
+            MLproject/mlflow_server.log
           if-no-files-found: warn

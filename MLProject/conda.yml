@@ -1,5 +1,4 @@
-
-name: titanic-classification-env
+name: superyachts-clustering-env
 
 channels:
   - conda-forge
@@ -12,3 +11,6 @@ dependencies:
       - scikit-learn==1.6.1
       - pandas==2.2.3
       - numpy==2.2.4
+      - flask
+      - prometheus-client
+      - requests

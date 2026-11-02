@@ -1,3 +1,4 @@
+
 name: Workflow CI
 
 on:
@@ -22,37 +23,52 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install mlflow==2.22.0
-          pip install scikit-learn==1.6.1
-          pip install pandas==2.2.3
-          pip install numpy==2.2.4
+          pip install -r MLProject/requirements.txt
 
-      - name: Validate project files
+      - name: Validate preprocessing dataset
         run: |
-          test -f MLProject/MLProject
-          test -f MLProject/conda.yml
-          test -f MLProject/modelling.py
-          test -f MLProject/titanic_preprocessing_train.csv
-          test -f MLProject/titanic_preprocessing_test.csv
-          echo "Semua file MLProject tersedia."
+          test -f MLProject/preprocessed_data.csv
+          python -c "import pandas as pd; df = pd.read_csv('MLProject/preprocessed_data.csv'); assert not df.empty, 'Dataset kosong'; print('Dataset shape:', df.shape)"
 
-      - name: Validate Python syntax
+      - name: Start MLflow Tracking Server
         run: |
-          python -m py_compile MLProject/modelling.py
-          echo "Sintaks Python valid."
+          cd MLProject
+          mkdir -p mlartifacts
+          nohup mlflow server \
+            --host 127.0.0.1 \
+            --port 5000 \
+            --backend-store-uri sqlite:///mlflow.db \
+            --default-artifact-root ./mlartifacts \
+            > mlflow_server.log 2>&1 &
+
+      - name: Wait for MLflow Server
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:5000/health; then
+              echo "MLflow server is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "MLflow server failed to start"
+          cat MLProject/mlflow_server.log
+          exit 1
 
       - name: Run MLflow Project
-        working-directory: MLProject
+        env:
+          MLFLOW_TRACKING_URI: http://127.0.0.1:5000
         run: |
+          cd MLProject
           mlflow run . --env-manager=local
 
-      - name: Upload training results
+      - name: Upload clustering results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: titanic-training-results
+          name: global-superyachts-clustering-results
           path: |
-            MLProject/hasil_prediksi_titanic.csv
-            MLProject/classification_report.txt
-            MLProject/confusion_matrix.csv
-          if-no-files-found: ignore
+            MLProject/hasil_clustering.csv
+            MLProject/ringkasan_cluster.csv
+            MLProject/mlflow.db
+            MLProject/mlflow_server.log
+          if-no-files-found: warn

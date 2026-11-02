@@ -1,5 +1,6 @@
+name: global-superyachts-clustering
 
-name: titanic-classification
+conda_env: conda.yml
 
 entry_points:
   main:

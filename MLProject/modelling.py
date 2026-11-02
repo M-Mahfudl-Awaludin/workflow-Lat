@@ -1,147 +1,105 @@
 
 import os
-from contextlib import nullcontext
 from pathlib import Path
 
 import mlflow
 import mlflow.sklearn
 import pandas as pd
 
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import (
-    accuracy_score,
-    precision_score,
-    recall_score,
-    f1_score,
-    classification_report,
-    confusion_matrix,
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+
+# Set project directory
+BASE_DIR = Path(__file__).resolve().parent
+
+# Load preprocessed data
+df = pd.read_csv(BASE_DIR / "preprocessed_data.csv")
+
+# Select features for clustering
+features = [
+    "Year_Built",
+    "Length_meters",
+    "Gross_Tonnage",
+    "Top_Speed_knots",
+    "Guests_Capacity"
+]
+
+X = df[features].copy()
+
+# Convert features to numeric
+X = X.apply(pd.to_numeric, errors="coerce")
+
+# Handle missing values
+X = X.fillna(X.median())
+
+# Remove rows with remaining missing values
+valid_rows = X.notna().all(axis=1)
+X = X.loc[valid_rows]
+df = df.loc[valid_rows].copy()
+
+if len(X) <= 5:
+    raise ValueError("Jumlah data harus lebih dari 5.")
+
+# Set MLflow Tracking URI
+tracking_uri = os.getenv(
+    "MLFLOW_TRACKING_URI",
+    "http://127.0.0.1:5000/"
 )
 
-BASE_DIR = Path(__file__).resolve().parent
-TRAIN_PATH = BASE_DIR / "titanic_preprocessing_train.csv"
-TEST_PATH = BASE_DIR / "titanic_preprocessing_test.csv"
+mlflow.set_tracking_uri(tracking_uri)
+mlflow.set_experiment("Global Superyachts Clustering")
 
-RANDOM_STATE = 42
+# Autolog
+mlflow.sklearn.autolog()
 
-# Local run menggunakan tracking server lokal.
-# MLflow Project akan mengelola run-nya sendiri.
-if not os.environ.get("MLFLOW_RUN_ID"):
-    mlflow.set_tracking_uri(
-        os.getenv("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000")
-    )
-    mlflow.set_experiment("Titanic Classification")
-    run_context = mlflow.start_run(run_name="Random Forest Titanic")
-else:
-    run_context = nullcontext()
+with mlflow.start_run():
 
-if not TRAIN_PATH.exists() or not TEST_PATH.exists():
-    raise FileNotFoundError(
-        "Dataset preprocessing tidak ditemukan. Pastikan file "
-        "titanic_preprocessing_train.csv dan "
-        "titanic_preprocessing_test.csv ada di folder MLProject."
+    # Define model without hyperparameter tuning
+    model = KMeans(
+        n_clusters=5,
+        random_state=42,
+        n_init=10
     )
 
-train_df = pd.read_csv(TRAIN_PATH)
-test_df = pd.read_csv(TEST_PATH)
+    # Train model
+    model.fit(X)
 
-target = "Survived"
+    # Predict cluster
+    y_pred = model.predict(X)
 
-if target not in train_df.columns or target not in test_df.columns:
-    raise ValueError("Kolom target Survived tidak ditemukan.")
+    # Evaluate clustering
+    inertia = model.inertia_
+    silhouette = silhouette_score(X, y_pred)
 
-X_train = train_df.drop(columns=[target])
-y_train = train_df[target].astype(int)
+    # Log additional metrics
+    mlflow.log_metric("inertia", float(inertia))
+    mlflow.log_metric("silhouette_score", float(silhouette))
 
-X_test = test_df.drop(columns=[target])
-y_test = test_df[target].astype(int)
-
-if list(X_train.columns) != list(X_test.columns):
-    raise ValueError("Kolom fitur training dan testing tidak konsisten.")
-
-if X_train.isnull().any().any() or X_test.isnull().any().any():
-    raise ValueError("Fitur masih mengandung missing values.")
-
-if len(X_train) == 0 or len(X_test) == 0:
-    raise ValueError("Dataset training atau testing kosong.")
-
-# Autolog parameter dan metrik dari scikit-learn.
-mlflow.sklearn.autolog(log_models=False)
-
-with run_context:
-    model = RandomForestClassifier(
-        n_estimators=200,
-        max_depth=None,
-        min_samples_split=2,
-        min_samples_leaf=1,
-        random_state=RANDOM_STATE,
-        n_jobs=-1,
-    )
-
-    model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
-
-    metrics = {
-        "accuracy": accuracy_score(y_test, y_pred),
-        "precision": precision_score(y_test, y_pred, zero_division=0),
-        "recall": recall_score(y_test, y_pred, zero_division=0),
-        "f1_score": f1_score(y_test, y_pred, zero_division=0),
-    }
-
-    mlflow.log_param("model_type", "RandomForestClassifier")
-    mlflow.log_param("random_state", RANDOM_STATE)
-    mlflow.log_param("n_estimators", 200)
-    mlflow.log_param("train_rows", len(X_train))
-    mlflow.log_param("test_rows", len(X_test))
-    mlflow.log_param("number_of_features", X_train.shape[1])
-
-    for metric_name, metric_value in metrics.items():
-        mlflow.log_metric(metric_name, float(metric_value))
+    # Log model
+    input_example = X.iloc[:5]
 
     mlflow.sklearn.log_model(
-        sk_model=model,
-        artifact_path="model",
-        input_example=X_train.head(5),
+        model,
+        "model",
+        input_example=input_example
     )
 
-    # Simpan hasil prediksi
-    prediction_path = BASE_DIR / "hasil_prediksi_titanic.csv"
-    pd.DataFrame({
-        "actual_Survived": y_test.to_numpy(),
-        "predicted_Survived": y_pred,
-    }).to_csv(prediction_path, index=False)
+    # Save clustering results
+    df["Cluster"] = y_pred
 
-    # Simpan classification report
-    report_path = BASE_DIR / "classification_report.txt"
-    report = classification_report(
-        y_test,
-        y_pred,
-        target_names=["Tidak Selamat", "Selamat"],
-        zero_division=0,
+    df.to_csv(
+        BASE_DIR / "hasil_clustering.csv",
+        index=False
     )
-    report_path.write_text(report, encoding="utf-8")
 
-    # Simpan confusion matrix
-    cm_path = BASE_DIR / "confusion_matrix.csv"
-    cm = confusion_matrix(y_test, y_pred, labels=[0, 1])
-    pd.DataFrame(
-        cm,
-        index=["Actual_0", "Actual_1"],
-        columns=["Predicted_0", "Predicted_1"],
-    ).to_csv(cm_path)
+    # Save cluster summary
+    df.groupby("Cluster")[features].mean().to_csv(
+        BASE_DIR / "ringkasan_cluster.csv"
+    )
 
-    mlflow.log_artifact(str(prediction_path))
-    mlflow.log_artifact(str(report_path))
-    mlflow.log_artifact(str(cm_path))
+    print("Model training completed successfully.")
+    print(f"Inertia: {inertia:.4f}")
+    print(f"Silhouette Score: {silhouette:.4f}")
+    print(f"MLflow Run ID: {mlflow.active_run().info.run_id}")
 
-    print("\nHasil evaluasi:")
-    for metric_name, metric_value in metrics.items():
-        print(f"{metric_name}: {metric_value:.4f}")
-
-    print("\nClassification Report:")
-    print(report)
-
-    print("Hasil prediksi:", prediction_path)
-    print("Classification report:", report_path)
-    print("Confusion matrix:", cm_path)
-
-print("\nEksperimen Titanic Classification selesai.")
+print("Experiment completed.")
